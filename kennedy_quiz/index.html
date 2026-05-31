@@ -476,9 +476,80 @@
     text-align: center;
     margin: 8px 0;
   }
+
+  /* ===== IMAGE LOADING ===== */
+  .img-wrap {
+    position: relative;
+  }
+  .img-skeleton {
+    width: 100%;
+    max-width: 400px;
+    height: 220px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 12px;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    gap: 8px;
+  }
+  .img-skeleton.hidden { display: none; }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .img-wrap img.loading { display: none; }
+  .img-wrap img.loaded { display: inline-block; }
+
+  /* ===== PRELOAD SCREEN ===== */
+  #preload-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 999;
+  }
+  #preload-screen.hidden { display: none; }
+  .preload-bar-wrap {
+    width: 260px;
+    background: var(--surface2);
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .preload-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 4px;
+    transition: width 0.2s;
+  }
+  .preload-txt {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .preload-emoji { font-size: 3rem; }
 </style>
 </head>
 <body>
+
+<div id="preload-screen">
+  <div class="preload-emoji">🦷</div>
+  <div class="preload-txt" id="preload-txt">CARREGANDO IMAGENS…</div>
+  <div class="preload-bar-wrap">
+    <div class="preload-bar-fill" id="preload-bar" style="width:0%"></div>
+  </div>
+  <div class="preload-txt" id="preload-count">0 / 16</div>
+</div>
 
 <div class="header">
   <h1>🦷 Classificação de Kennedy</h1>
@@ -581,6 +652,32 @@ function shuffle(arr) {
   return arr;
 }
 
+// ===== IMAGE PRELOADER =====
+const imageCache = {};
+
+function preloadAllImages(callback) {
+  const total = ALL_IMAGES.length;
+  let loaded = 0;
+
+  ALL_IMAGES.forEach(item => {
+    const img = new Image();
+    imageCache[item.key] = img;
+    img.onload = img.onerror = () => {
+      loaded++;
+      const pct = Math.round((loaded / total) * 100);
+      document.getElementById('preload-bar').style.width = pct + '%';
+      document.getElementById('preload-count').textContent = `${loaded} / ${total}`;
+      if (loaded === total) {
+        setTimeout(() => {
+          document.getElementById('preload-screen').classList.add('hidden');
+          callback();
+        }, 300);
+      }
+    };
+    img.src = `images/${item.key}.jpeg`;
+  });
+}
+
 function startGame() {
   queue = shuffle([...ALL_IMAGES]);
   totalAnswered = 0; correctCount = 0; wrongCount = 0;
@@ -619,7 +716,10 @@ function renderQuestion() {
 
   let html = `<div class="card">
     <div class="img-wrap">
-      <img src="images/${current.key}.jpeg" alt="Radiografia Kennedy" />
+      <div class="img-skeleton" id="img-skeleton">⏳ Carregando imagem…</div>
+      <img src="images/${current.key}.jpeg" alt="Radiografia Kennedy" class="loading"
+        onload="this.classList.remove('loading');this.classList.add('loaded');document.getElementById('img-skeleton').classList.add('hidden');"
+        onerror="this.src='images/${current.key}.jpeg';"/>
       <div class="img-badge">🦷 Caso #${totalAnswered + 1} de ${ALL_IMAGES.length}</div>
     </div>`;
 
@@ -813,7 +913,7 @@ function showFinal() {
 }
 
 // Start!
-startGame();
+preloadAllImages(() => startGame());
 </script>
 </body>
 </html>
